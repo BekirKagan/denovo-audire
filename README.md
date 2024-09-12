@@ -37,7 +37,8 @@ You can download the precompiled `.exe` from the [Releases](https://github.com/y
 3. Run the player:
    ```bash
    cargo run --release
-   or
+or
+   ```bash
    ./target/release/denovo-audire.exe
 
 ### Cross-Platform Compatibility
