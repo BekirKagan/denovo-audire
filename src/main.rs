@@ -32,13 +32,15 @@ fn main() -> Result<(), Error> {
     let musics_directory = audio_dir().expect("Could not find 'Musics' folder in user directory.");
     let musics_directory = musics_directory.to_str().unwrap();
     let musics: Vec<Music> = get_musics(musics_directory)?;
-    let mut _queue: Vec<Music> = Vec::new();
+    let mut queue: Vec<Music> = Vec::new();
     let mut current_music: Music;
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
 
     render_musics(&mut stdout, &musics)?;
+    render_queue(&mut stdout, &queue)?;
+    render_volume(&mut stdout, &sink)?;
 
     while running {
         thread::sleep(Duration::from_millis(16)); // 60 frames per second
@@ -64,10 +66,30 @@ fn main() -> Result<(), Error> {
                         current_music = musics[index].clone();
                         play_music_once(&sink, &current_music)?;
                     }
+                    event::KeyCode::Char('q') => {
+                        let index = get_current_index(offset_from_top)?;
+                        current_music = musics[index].clone();
+                        queue.push(current_music);
+                        render_queue(&mut stdout, &queue)?;
+                    }
+                    event::KeyCode::Char('x') => {
+                        clear_queue(&mut stdout, &mut queue)?;
+                    }
+                    event::KeyCode::Char('p') => {
+                        play_queue(&sink, &queue)?;
+                    }
+                    event::KeyCode::Char('l') => {
+                        adjust_volume(&sink, 0.1)?;
+                        render_volume(&mut stdout, &sink)?;
+                    }
+                    event::KeyCode::Char('h') => {
+                        adjust_volume(&sink, -0.1)?;
+                        render_volume(&mut stdout, &sink)?;
+                    }
                     _ => {}
                 }
-                stdout.flush()?;
             }
+            stdout.flush()?;
         }
     }
 
@@ -125,6 +147,8 @@ fn render_musics(stdout: &mut Stdout, musics: &Vec<Music>) -> Result<(), Error> 
     stdout.write("Name".blue().to_string().as_bytes())?;
     stdout.queue(cursor::MoveToColumn(40))?;
     stdout.write("Time".blue().to_string().as_bytes())?;
+    stdout.queue(cursor::MoveToColumn(91))?;
+    stdout.write("Queue".blue().to_string().as_bytes())?;
     stdout.queue(cursor::MoveTo(0, 1))?;
     stdout.write("─".repeat(terminal_width).blue().to_string().as_bytes())?;
     stdout.queue(cursor::MoveTo(0, 2))?;
@@ -135,12 +159,64 @@ fn render_musics(stdout: &mut Stdout, musics: &Vec<Music>) -> Result<(), Error> 
         stdout.queue(cursor::MoveToColumn(40))?;
         stdout.write(music.duration.to_string().as_bytes())?;
         stdout.write(b"s")?;
+        stdout.queue(cursor::MoveToColumn(89))?;
+        stdout.write("│".blue().to_string().as_bytes())?;
         stdout.queue(cursor::MoveToNextLine(1))?;
         stdout.queue(cursor::MoveToColumn(0))?;
         counter += 1;
     }
     stdout.queue(cursor::RestorePosition)?;
     stdout.flush()?;
+    Ok(())
+}
+
+fn render_queue(stdout: &mut Stdout, queue: &Vec<Music>) -> Result<(), Error> {
+    stdout.queue(cursor::SavePosition)?;
+    stdout.queue(cursor::MoveTo(91, 2))?;
+    for music in queue {
+        stdout.write(music.name.as_bytes())?;
+        stdout.queue(cursor::MoveToNextLine(1))?;
+        stdout.queue(cursor::MoveToColumn(91))?;
+    }
+    stdout.queue(cursor::RestorePosition)?;
+    stdout.flush()?;
+    Ok(())
+}
+
+fn clear_queue(stdout: &mut Stdout, queue: &mut Vec<Music>) -> Result<(), Error> {
+    stdout.queue(cursor::SavePosition)?;
+    stdout.queue(cursor::MoveTo(91, 2))?;
+    for _ in &mut *queue {
+        stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
+        stdout.queue(cursor::MoveToNextLine(1))?;
+        stdout.queue(cursor::MoveToColumn(91))?;
+    }
+    stdout.queue(cursor::RestorePosition)?;
+    stdout.flush()?;
+    queue.clear();
+    Ok(())
+}
+
+fn render_volume(stdout: &mut Stdout, sink: &Sink) -> Result<(), Error> {
+    let (width, height) = terminal::size()?;
+    let current_volume = sink.volume();
+    let start_position = width - 11;
+    let cell_count = (current_volume * 10.0).round() as u16;
+    stdout.queue(cursor::SavePosition)?;
+    stdout.queue(cursor::MoveTo(start_position, height - 1))?;
+    stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
+    for index in 0..cell_count {
+        stdout.queue(cursor::MoveToColumn(start_position + index))?;
+        stdout.write("■".blue().to_string().as_bytes())?;
+    }
+    stdout.queue(cursor::RestorePosition)?;
+    stdout.flush()?;
+    Ok(())
+}
+
+fn adjust_volume(sink: &Sink, value: f32) -> Result<(), Error> {
+    let new_volume = (sink.volume() + value).clamp(0.0, 1.0);
+    sink.set_volume(new_volume);
     Ok(())
 }
 
@@ -153,5 +229,13 @@ fn play_music_once(sink: &Sink, music: &Music) -> Result<(), Error> {
     let source = get_source(&music.path)?;
     sink.stop();
     sink.append(source);
+    Ok(())
+}
+
+fn play_queue(sink: &Sink, queue: &Vec<Music>) -> Result<(), Error> {
+    for music in queue {
+        let source = get_source(&music.path)?;
+        sink.append(source);
+    }
     Ok(())
 }
