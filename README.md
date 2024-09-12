@@ -21,7 +21,7 @@
 
 ### Precompiled Executable (Windows only)
 
-You can download the precompiled `.exe` from the [Releases](https://github.com/your-username/denovo-audire/releases) page. No additional dependencies are required to run the `.exe`.
+You can download the precompiled `.exe` from the [Releases](https://github.com/BekirKagan/denovo-audire/releases) page. No additional dependencies are required to run the `.exe`.
 
 ### Running from Source
 
@@ -37,9 +37,6 @@ You can download the precompiled `.exe` from the [Releases](https://github.com/y
 3. Run the player:
    ```bash
    cargo run --release
-or
-   ```bash
-   ./target/release/denovo-audire.exe
 
 ### Cross-Platform Compatibility
 
