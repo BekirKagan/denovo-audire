@@ -1,3 +1,5 @@
+<img align="right" alt="image" title="denovo-audire-icon" src="https://github.com/user-attachments/assets/3e8bd0e2-3b4d-4659-a667-554486bab56a"/> 
+
 # denovo-audire
 
 **denovo-audire** is a simple terminal-based music player written in Rust. It allows you to play local `.mp3` files with basic navigation and queue functionality. It's lightweight and easy to use, with controls designed for intuitive playback from the terminal.
