@@ -33,7 +33,6 @@ fn main() -> Result<(), Error> {
     let musics_directory = musics_directory.to_str().unwrap();
     let musics: Vec<Music> = get_musics(musics_directory)?;
     let mut queue: Vec<Music> = Vec::new();
-    let mut current_music: Music;
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let sink = Sink::try_new(&stream_handle).unwrap();
@@ -63,13 +62,17 @@ fn main() -> Result<(), Error> {
                     }
                     event::KeyCode::Enter => {
                         let index = get_current_index(offset_from_top)?;
-                        current_music = musics[index].clone();
-                        play_music_once(&sink, &current_music)?;
+                        let music = musics[index].clone();
+                        play_music_once(&sink, &music)?;
+                        render_now_playing(&mut stdout, &music)?;
+                    }
+                    event::KeyCode::Char(' ') => {
+                        toggle_music(&sink)?;
                     }
                     event::KeyCode::Char('q') => {
                         let index = get_current_index(offset_from_top)?;
-                        current_music = musics[index].clone();
-                        queue.push(current_music);
+                        let music = musics[index].clone();
+                        queue.push(music);
                         render_queue(&mut stdout, &queue)?;
                     }
                     event::KeyCode::Char('x') => {
@@ -78,11 +81,11 @@ fn main() -> Result<(), Error> {
                     event::KeyCode::Char('p') => {
                         play_queue(&sink, &queue)?;
                     }
-                    event::KeyCode::Char('l') => {
+                    event::KeyCode::Right | event::KeyCode::Char('l') => {
                         adjust_volume(&sink, 0.1)?;
                         render_volume(&mut stdout, &sink)?;
                     }
-                    event::KeyCode::Char('h') => {
+                    event::KeyCode::Left | event::KeyCode::Char('h') => {
                         adjust_volume(&sink, -0.1)?;
                         render_volume(&mut stdout, &sink)?;
                     }
@@ -170,6 +173,22 @@ fn render_musics(stdout: &mut Stdout, musics: &Vec<Music>) -> Result<(), Error> 
     Ok(())
 }
 
+fn render_now_playing(stdout: &mut Stdout, current_music: &Music) -> Result<(), Error> {
+    let height = terminal::size()?.1;
+    stdout.queue(cursor::SavePosition)?;
+    stdout.queue(cursor::MoveTo(0, height - 2))?;
+    stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
+    stdout.write(
+        format!("Now playing: {}", current_music.name)
+            .blue()
+            .to_string()
+            .as_bytes(),
+    )?;
+    stdout.queue(cursor::RestorePosition)?;
+    stdout.flush()?;
+    Ok(())
+}
+
 fn render_queue(stdout: &mut Stdout, queue: &Vec<Music>) -> Result<(), Error> {
     stdout.queue(cursor::SavePosition)?;
     stdout.queue(cursor::MoveTo(91, 2))?;
@@ -194,6 +213,13 @@ fn clear_queue(stdout: &mut Stdout, queue: &mut Vec<Music>) -> Result<(), Error>
     stdout.queue(cursor::RestorePosition)?;
     stdout.flush()?;
     queue.clear();
+    Ok(())
+}
+
+fn remove_from_queue(queue: &mut Vec<Music>, music: &Music) -> Result<(), Error> {
+    if let Some(index) = queue.iter().position(|element| element.name == music.name) {
+        queue.remove(index);
+    }
     Ok(())
 }
 
@@ -232,10 +258,24 @@ fn play_music_once(sink: &Sink, music: &Music) -> Result<(), Error> {
     Ok(())
 }
 
+fn toggle_music(sink: &Sink) -> Result<(), Error> {
+    if sink.is_paused() {
+        sink.play();
+    } else {
+        sink.pause();
+    }
+    Ok(())
+}
+
 fn play_queue(sink: &Sink, queue: &Vec<Music>) -> Result<(), Error> {
     for music in queue {
         let source = get_source(&music.path)?;
         sink.append(source);
     }
     Ok(())
+}
+
+fn is_music_ended(sink: &Sink, queue: &Vec<Music>, index: usize) -> bool {
+    let current_pos = sink.get_pos().as_secs_f32();
+    current_pos == queue[index].duration
 }
