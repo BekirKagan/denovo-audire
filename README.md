@@ -29,7 +29,7 @@ You can download the precompiled `.exe` from the [Releases](https://github.com/B
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/denovo-audire.git
+   git clone https://github.com/BekirKagan/denovo-audire.git
    cd denovo-audire
 
 2. Build the project:
