@@ -9,8 +9,6 @@ use std::{
     fs::File,
     io::{stdout, BufReader, Error, Stdout, Write},
     path::PathBuf,
-    thread,
-    time::Duration,
 };
 
 mod music;
@@ -42,8 +40,6 @@ fn main() -> Result<(), Error> {
     render_volume(&mut stdout, &sink)?;
 
     while running {
-        thread::sleep(Duration::from_millis(16)); // 60 frames per second
-
         if let event::Event::Key(event) = event::read()? {
             if event.kind == event::KeyEventKind::Press {
                 match event.code {
@@ -63,8 +59,11 @@ fn main() -> Result<(), Error> {
                     event::KeyCode::Enter => {
                         let index = get_current_index(offset_from_top)?;
                         let music = musics[index].clone();
-                        play_music_once(&sink, &music)?;
-                        render_now_playing(&mut stdout, &music)?;
+                        clear_queue(&mut stdout, &sink, &mut queue)?;
+                        queue.push(music.clone());
+                        play_queue(&sink, &queue)?;
+                        render_queue(&mut stdout, &queue)?;
+                        render_now_playing(&mut stdout, music.name)?;
                     }
                     event::KeyCode::Char(' ') => {
                         toggle_music(&sink)?;
@@ -76,10 +75,12 @@ fn main() -> Result<(), Error> {
                         render_queue(&mut stdout, &queue)?;
                     }
                     event::KeyCode::Char('x') => {
-                        clear_queue(&mut stdout, &mut queue)?;
+                        clear_queue(&mut stdout, &sink, &mut queue)?;
                     }
                     event::KeyCode::Char('p') => {
+                        sink.stop();
                         play_queue(&sink, &queue)?;
+                        render_now_playing(&mut stdout, queue[0].name.clone())?;
                     }
                     event::KeyCode::Right | event::KeyCode::Char('l') => {
                         adjust_volume(&sink, 0.1)?;
@@ -173,13 +174,13 @@ fn render_musics(stdout: &mut Stdout, musics: &Vec<Music>) -> Result<(), Error> 
     Ok(())
 }
 
-fn render_now_playing(stdout: &mut Stdout, current_music: &Music) -> Result<(), Error> {
+fn render_now_playing(stdout: &mut Stdout, music_name: String) -> Result<(), Error> {
     let height = terminal::size()?.1;
     stdout.queue(cursor::SavePosition)?;
     stdout.queue(cursor::MoveTo(0, height - 2))?;
     stdout.queue(terminal::Clear(terminal::ClearType::UntilNewLine))?;
     stdout.write(
-        format!("Now playing: {}", current_music.name)
+        format!("Now playing: {}", music_name)
             .blue()
             .to_string()
             .as_bytes(),
@@ -202,7 +203,7 @@ fn render_queue(stdout: &mut Stdout, queue: &Vec<Music>) -> Result<(), Error> {
     Ok(())
 }
 
-fn clear_queue(stdout: &mut Stdout, queue: &mut Vec<Music>) -> Result<(), Error> {
+fn clear_queue(stdout: &mut Stdout, sink: &Sink, queue: &mut Vec<Music>) -> Result<(), Error> {
     stdout.queue(cursor::SavePosition)?;
     stdout.queue(cursor::MoveTo(91, 2))?;
     for _ in &mut *queue {
@@ -213,13 +214,7 @@ fn clear_queue(stdout: &mut Stdout, queue: &mut Vec<Music>) -> Result<(), Error>
     stdout.queue(cursor::RestorePosition)?;
     stdout.flush()?;
     queue.clear();
-    Ok(())
-}
-
-fn remove_from_queue(queue: &mut Vec<Music>, music: &Music) -> Result<(), Error> {
-    if let Some(index) = queue.iter().position(|element| element.name == music.name) {
-        queue.remove(index);
-    }
+    sink.stop();
     Ok(())
 }
 
@@ -251,13 +246,6 @@ fn get_current_index(offset: u16) -> Result<usize, Error> {
     Ok(index as usize)
 }
 
-fn play_music_once(sink: &Sink, music: &Music) -> Result<(), Error> {
-    let source = get_source(&music.path)?;
-    sink.stop();
-    sink.append(source);
-    Ok(())
-}
-
 fn toggle_music(sink: &Sink) -> Result<(), Error> {
     if sink.is_paused() {
         sink.play();
@@ -273,9 +261,4 @@ fn play_queue(sink: &Sink, queue: &Vec<Music>) -> Result<(), Error> {
         sink.append(source);
     }
     Ok(())
-}
-
-fn is_music_ended(sink: &Sink, queue: &Vec<Music>, index: usize) -> bool {
-    let current_pos = sink.get_pos().as_secs_f32();
-    current_pos == queue[index].duration
 }
