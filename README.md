@@ -18,6 +18,7 @@
 - `Q`: Add the selected song to the queue.
 - `P`: Play the queued songs.
 - `X`: Clear the queue.
+- `N`: Play the next song in the queue.
 
 ## Getting Started
 

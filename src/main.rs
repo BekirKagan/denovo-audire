@@ -82,6 +82,9 @@ fn main() -> Result<(), Error> {
                         play_queue(&sink, &queue)?;
                         render_now_playing(&mut stdout, queue[0].name.clone())?;
                     }
+                    event::KeyCode::Char('n') => {
+                        skip_music(&sink)?;
+                    }
                     event::KeyCode::Right | event::KeyCode::Char('l') => {
                         adjust_volume(&sink, 0.1)?;
                         render_volume(&mut stdout, &sink)?;
@@ -252,6 +255,11 @@ fn toggle_music(sink: &Sink) -> Result<(), Error> {
     } else {
         sink.pause();
     }
+    Ok(())
+}
+
+fn skip_music(sink: &Sink) -> Result<(), Error> {
+    sink.skip_one();
     Ok(())
 }
 
